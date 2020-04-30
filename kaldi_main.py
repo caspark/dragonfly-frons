@@ -149,9 +149,15 @@ def load_sleep_wake_grammar(initial_awake):
 def load_ui_grammar(do_quit):
     ui_grammar = Grammar("KaldiUI")
 
+    def restart_app():
+        import sys
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
     class ControlRule(MappingRule):
         mapping = {
-            "please quit the kaldi UI":  Function(do_quit),
+            "please quit the kaldi UI": Function(do_quit),
+            "please restart the kaldi UI": Function(restart_app),
         }
     ui_grammar.add_rule(ControlRule())
 
