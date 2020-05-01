@@ -13,6 +13,7 @@ import logging
 import os.path
 import threading
 import tkinter as tk
+import enum
 from tkinter import messagebox
 from tkinter import ttk
 
@@ -22,21 +23,44 @@ from dragonfly.loader import CommandModuleDirectory
 from dragonfly.log import setup_log
 
 
+class FakeStringVar:
+    """A version of StringVar that can be used while tk is not yet loaded.
+
+    Allows StringVar setters called from outside the tk thread to be agnostic of whether the UI has
+    actually been created yet. Then, when the tk UI is actually created, a FakeStringVar can be
+    'upgraded' into a real StringVar."""
+    def __init__(self, value=''):
+        self.value = value
+
+    def set(self, value):
+        self.value = value
+
+    def upgrade(self):
+        return tk.StringVar(value=self.value)
+
 class App(threading.Thread):
 
     def __init__(self, shutdown_engine):
         threading.Thread.__init__(self)
         self.shutdown_engine = shutdown_engine
-        self.start()
         self.should_close = False
+
+        self.status_line = FakeStringVar()
+        self.last_heard = FakeStringVar()
+
+        self.start()
 
     def quit(self):
         """ Quit the UI. Intended to be called from outside the UI - i.e. is safe to call from another thread. """
         self._do_shutdown()
 
+    def set_status_line(self, s):
+        if len(s):
+            self.status_line.set(s)
+
     def set_last_heard(self, s):
         if len(s):
-            self.last_heard.set(f"Last heard: {s}")
+            self.last_heard.set(s)
 
     def _on_window_close(self):
         do_quit = messagebox.askyesno(message='Are you sure you want to quit KaldiUI?', icon='question', title='Quit?')
@@ -65,11 +89,19 @@ class App(threading.Thread):
         self.root.title("KaldiUI")
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
-        self.last_heard = tk.StringVar()
+        self.status_line = self.status_line.upgrade()
+        label = tk.Label(self.root, textvariable=self.status_line)
+        label.grid()
+
+        self.last_heard = self.last_heard.upgrade()
         label = tk.Label(self.root, textvariable=self.last_heard)
         label.grid()
 
+
         self.root.after(1000, self._check_for_quit)
+        self.root.attributes('-alpha', 0.8) # transparency
+        self.root.overrideredirect(True) # hide the title bar
+        self.root.wm_attributes("-topmost", 1)  # always on top
 
         self.root.mainloop()
 
@@ -88,25 +120,13 @@ else:
     setup_log()
 
 
-# --------------------------------------------------------------------------
-# User notification / rudimentary UI. MODIFY AS DESIRED
-
-# For message in ('sleep', 'wake')
-def notify(message):
-    if message == 'sleep':
-        print("Sleeping...")
-        # get_engine().speak("Sleeping")
-    elif message == 'wake':
-        print("Awake...")
-        # get_engine().speak("Awake")
-
-
-# --------------------------------------------------------------------------
-# Sleep/wake grammar. (This can be unused or removed if you don't want it.)
+class AppStatus(enum.Enum):
+    LOADING = 1
+    READY = 2
+    SLEEPING = 3
 
 sleeping = False
-
-def load_sleep_wake_grammar(initial_awake):
+def load_sleep_wake_grammar(initial_awake, notify_status):
     sleep_grammar = Grammar("sleep")
 
     def sleep(force=False):
@@ -114,14 +134,14 @@ def load_sleep_wake_grammar(initial_awake):
         if not sleeping or force:
             sleeping = True
             sleep_grammar.set_exclusiveness(True)
-        notify('sleep')
+        notify_status(AppStatus.SLEEPING)
 
     def wake(force=False):
         global sleeping
         if sleeping or force:
             sleeping = False
             sleep_grammar.set_exclusiveness(False)
-        notify('wake')
+        notify_status(AppStatus.READY)
 
     class SleepRule(MappingRule):
         mapping = {
@@ -194,11 +214,25 @@ def main():
 
     ui = App(shutdown_engine=engine.disconnect)
 
+    def notify_status(status: AppStatus):
+        if status == AppStatus.LOADING:
+            print("Loading...")
+            ui.set_status_line("Initializing...")
+        elif status == AppStatus.SLEEPING:
+            print("Sleeping...")
+            ui.set_status_line("Asleep...")
+        elif status == AppStatus.READY:
+            print("Awake...")
+            ui.set_status_line("Listening...")
+            print(f"Unknown status! {status}")
+
+    notify_status(AppStatus.LOADING)
+
     # Call connect() now that the engine configuration is set.
     engine.connect()
 
     # Load grammars.
-    load_sleep_wake_grammar(True)
+    load_sleep_wake_grammar(True, notify_status=notify_status)
     load_ui_grammar(do_quit=ui.quit)
     directory = CommandModuleDirectory(path, excludes=[__file__])
     directory.load()
@@ -208,7 +242,9 @@ def main():
         print("Speech start detected.")
 
     def on_recognition(words):
-        ui.set_last_heard(" ".join(words))
+        s = " ".join(words)
+        if len(s):
+            ui.set_last_heard(f"Last heard: {s}")
         print("Recognized: %s" % " ".join(words))
 
     def on_failure():
@@ -217,7 +253,7 @@ def main():
     # Start the engine's main recognition loop
     engine.prepare_for_recognition()
     try:
-        print("Listening...")
+        notify_status(AppStatus.READY)
         engine.do_recognition(begin_callback=on_begin, recognition_callback=on_recognition,
                        failure_callback=on_failure, end_callback=None,
                        post_recognition_callback=None)
