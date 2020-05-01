@@ -44,21 +44,40 @@ class App(threading.Thread):
         threading.Thread.__init__(self)
         self.shutdown_engine = shutdown_engine
         self.should_close = False
+        self.context = {}
 
-        self.status_line = FakeStringVar()
-        self.last_heard = FakeStringVar()
+        self.status_line_var = FakeStringVar()
+        self.last_heard_var = FakeStringVar()
+        self.context_var = FakeStringVar()
 
         self.start()
 
     def quit(self):
-        """ Quit the UI. Intended to be called from outside the UI - i.e. is safe to call from another thread. """
+        """Quit the UI. Intended to be called from outside the UI - i.e. is safe to call from another thread. """
         self._do_shutdown()
 
     def set_status_line(self, s):
-        self.status_line.set(s)
+        """Update the displayed status (asleep, listening, etc)."""
+        self.status_line_var.set(s)
 
     def set_last_heard(self, s):
-        self.last_heard.set(s)
+        """Update the visual display of the last phrase heard."""
+        self.last_heard_var.set(s)
+
+    def set_visual_context(self, name, value):
+        """Display a piece of visual context.
+
+        This can be used to give the user a visual hint of current system status. For example, you could name
+        the last few voice commands and display them here so they can be picked out for easy repetition. Or
+        display the clipboard contents in each clipboard slot if you've rolled your own clipboard manager. Or
+        show the surrounding words next to the cursor according to the accessibility API, to show whether the
+        current app is accessible or not."""
+        if value is None:
+            del self.context[name]
+        else:
+            self.context[name] = value
+
+        self.context_var.set('\n'.join(sorted((f"{name}: {value}" for name, value in self.context.items()))))
 
     def _on_window_close(self):
         do_quit = messagebox.askyesno(message='Are you sure you want to quit KaldiUI?', icon='question', title='Quit?')
@@ -71,7 +90,7 @@ class App(threading.Thread):
         self.should_close = True
 
     def _check_for_quit(self):
-        """ Periodically checks whether we should quit.
+        """Periodically checks whether we should quit.
 
         Checking on a timer is more resilient to being asked to quit from another thread;
         without this, tk won't quit on a ctrl-c interrupt until the mouse is moved or it gets
@@ -87,14 +106,17 @@ class App(threading.Thread):
         self.root.title("KaldiUI")
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
-        self.status_line = self.status_line.upgrade()
-        label = tk.Label(self.root, textvariable=self.status_line)
-        label.grid()
+        self.status_line_var = self.status_line_var.upgrade()
+        label = ttk.Label(self.root, textvariable=self.status_line_var)
+        label.grid(column=0, row=0, sticky="nw")
 
-        self.last_heard = self.last_heard.upgrade()
-        label = tk.Label(self.root, textvariable=self.last_heard)
-        label.grid()
+        self.last_heard_var = self.last_heard_var.upgrade()
+        label = ttk.Label(self.root, textvariable=self.last_heard_var)
+        label.grid(column=1, row=0, sticky="nw")
 
+        self.context_var = self.context_var.upgrade()
+        label = ttk.Label(self.root, textvariable=self.context_var)
+        label.grid(column=0, row=1, columnspan=2, sticky="nw")
 
         self.root.after(1000, self._check_for_quit)
         self.root.attributes('-alpha', 0.8) # transparency
