@@ -9,13 +9,12 @@ the Kaldi engine. It scans the directory it's in and loads any ``_*.py`` it
 finds.
 """
 
+import enum
 import logging
 import os.path
 import threading
 import tkinter as tk
-import enum
-from tkinter import messagebox
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from dragonfly import (Dictation, FuncContext, Function, Grammar, MappingRule,
                        get_engine)
@@ -29,7 +28,8 @@ class FakeStringVar:
     Allows StringVar setters called from outside the tk thread to be agnostic of whether the UI has
     actually been created yet. Then, when the tk UI is actually created, a FakeStringVar can be
     'upgraded' into a real StringVar."""
-    def __init__(self, value=''):
+
+    def __init__(self, value=""):
         self.value = value
 
     def set(self, value):
@@ -39,7 +39,6 @@ class FakeStringVar:
         return tk.StringVar(value=self.value)
 
 class App(threading.Thread):
-
     def __init__(self, shutdown_engine):
         threading.Thread.__init__(self)
         self.shutdown_engine = shutdown_engine
@@ -53,7 +52,9 @@ class App(threading.Thread):
         self.start()
 
     def quit(self):
-        """Quit the UI. Intended to be called from outside the UI - i.e. is safe to call from another thread. """
+        """Quit the UI.
+
+        Intended to be called from outside the UI - i.e. is safe to call from another thread."""
         self._do_shutdown()
 
     def set_status_line(self, s):
@@ -67,20 +68,28 @@ class App(threading.Thread):
     def set_visual_context(self, name, value):
         """Display a piece of visual context.
 
-        This can be used to give the user a visual hint of current system status. For example, you could name
-        the last few voice commands and display them here so they can be picked out for easy repetition. Or
-        display the clipboard contents in each clipboard slot if you've rolled your own clipboard manager. Or
-        show the surrounding words next to the cursor according to the accessibility API, to show whether the
-        current app is accessible or not."""
+        This can be used to give the user a visual hint of current system status. For example, you
+        could name the last few voice commands and display them here so they can be picked out for
+        easy repetition. Or display the clipboard contents in each clipboard slot if you've rolled
+        your own clipboard manager. Or show the surrounding words next to the cursor according to
+        the accessibility API, to show whether the current app is accessible or not."""
         if value is None:
             del self.context[name]
         else:
             self.context[name] = value
 
-        self.context_var.set('\n'.join(sorted((f"{name}: {value}" for name, value in self.context.items()))))
+        self.context_var.set(
+            "\n".join(
+                sorted((f"{name}: {value}" for name, value in self.context.items()))
+            )
+        )
 
     def _on_window_close(self):
-        do_quit = messagebox.askyesno(message='Are you sure you want to quit KaldiUI?', icon='question', title='Quit?')
+        do_quit = messagebox.askyesno(
+            message="Are you sure you want to quit KaldiUI?",
+            icon="question",
+            title="Quit?",
+        )
         if do_quit:
             print("UI window closed - shutting down")
             self._do_shutdown()
@@ -92,10 +101,10 @@ class App(threading.Thread):
     def _check_for_quit(self):
         """Periodically checks whether we should quit.
 
-        Checking on a timer is more resilient to being asked to quit from another thread;
-        without this, tk won't quit on a ctrl-c interrupt until the mouse is moved or it gets
-        some other event. This approach supports ctrl-c, quitting via the window manager, and
-        quitting via voice command."""
+        Checking on a timer is more resilient to being asked to quit from another thread; without
+        this, tk won't quit on a ctrl-c interrupt until the mouse is moved or it gets some other
+        event. This approach supports ctrl-c, quitting via the window manager, and quitting via
+        voice command."""
         if self.should_close:
             self.root.quit()
         else:
@@ -119,8 +128,8 @@ class App(threading.Thread):
         label.grid(column=0, row=1, columnspan=2, sticky="nw")
 
         self.root.after(1000, self._check_for_quit)
-        self.root.attributes('-alpha', 0.8) # transparency
-        self.root.overrideredirect(True) # hide the title bar
+        self.root.attributes("-alpha", 0.8)  # transparency
+        self.root.overrideredirect(True)  # hide the title bar
         self.root.wm_attributes("-topmost", 1)  # always on top
 
         self.root.mainloop()
@@ -132,10 +141,10 @@ class App(threading.Thread):
 if False:
     # Debugging logging for reporting trouble
     logging.basicConfig(level=10)
-    logging.getLogger('grammar.decode').setLevel(20)
-    logging.getLogger('grammar.begin').setLevel(20)
-    logging.getLogger('compound').setLevel(20)
-    logging.getLogger('kaldi.compiler').setLevel(10)
+    logging.getLogger("grammar.decode").setLevel(20)
+    logging.getLogger("grammar.begin").setLevel(20)
+    logging.getLogger("compound").setLevel(20)
+    logging.getLogger("kaldi.compiler").setLevel(10)
 else:
     setup_log()
 
@@ -145,7 +154,10 @@ class AppStatus(enum.Enum):
     READY = 2
     SLEEPING = 3
 
+
 sleeping = False
+
+
 def load_sleep_wake_grammar(initial_awake, notify_status):
     sleep_grammar = Grammar("sleep")
 
@@ -165,17 +177,25 @@ def load_sleep_wake_grammar(initial_awake, notify_status):
 
     class SleepRule(MappingRule):
         mapping = {
-            "start listening":  Function(wake) + Function(lambda: get_engine().start_saving_adaptation_state()),
-            "stop listening":   Function(lambda: get_engine().stop_saving_adaptation_state()) + Function(sleep),
-            "halt listening":   Function(lambda: get_engine().stop_saving_adaptation_state()) + Function(sleep),
+            "start listening": Function(wake)
+            + Function(lambda: get_engine().start_saving_adaptation_state()),
+            "stop listening": Function(
+                lambda: get_engine().stop_saving_adaptation_state()
+            )
+            + Function(sleep),
+            "halt listening": Function(
+                lambda: get_engine().stop_saving_adaptation_state()
+            )
+            + Function(sleep),
         }
+
     sleep_grammar.add_rule(SleepRule())
 
     sleep_noise_rule = MappingRule(
-        name = "sleep_noise_rule",
-        mapping = { "<text>": Function(lambda text: False and print(text)) },
-        extras = [ Dictation("text") ],
-        context = FuncContext(lambda: sleeping),
+        name="sleep_noise_rule",
+        mapping={"<text>": Function(lambda text: False and print(text))},
+        extras=[Dictation("text")],
+        context=FuncContext(lambda: sleeping),
     )
     sleep_grammar.add_rule(sleep_noise_rule)
 
@@ -186,11 +206,13 @@ def load_sleep_wake_grammar(initial_awake, notify_status):
     else:
         sleep(force=True)
 
+
 def load_ui_grammar(do_quit):
     ui_grammar = Grammar("KaldiUI")
 
     def restart_app():
         import sys
+
         python = sys.executable
         os.execl(python, python, *sys.argv)
 
@@ -199,12 +221,15 @@ def load_ui_grammar(do_quit):
             "please quit the kaldi UI": Function(do_quit),
             "please restart the kaldi UI": Function(restart_app),
         }
+
     ui_grammar.add_rule(ControlRule())
 
     ui_grammar.load()
 
+
 # --------------------------------------------------------------------------
 # Main event driving loop.
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -220,8 +245,9 @@ def main():
 
     # Set any configuration options here as keyword arguments.
     # See Kaldi engine documentation for all available options and more info.
-    engine = get_engine('kaldi',
-        model_dir='models/daanzu_20200328_1ep-mediumlm',  # default model directory
+    engine = get_engine(
+        "kaldi",
+        model_dir="models/daanzu_20200328_1ep-mediumlm",  # default model directory
         vad_aggressiveness=1,  # default aggressiveness of VAD
         vad_padding_start_ms=10,  # default ms of required silence before VAD
         vad_padding_end_ms=10,  # default ms of required silence after VAD
@@ -274,9 +300,13 @@ def main():
     engine.prepare_for_recognition()
     try:
         notify_status(AppStatus.READY)
-        engine.do_recognition(begin_callback=on_begin, recognition_callback=on_recognition,
-                       failure_callback=on_failure, end_callback=None,
-                       post_recognition_callback=None)
+        engine.do_recognition(
+            begin_callback=on_begin,
+            recognition_callback=on_recognition,
+            failure_callback=on_failure,
+            end_callback=None,
+            post_recognition_callback=None,
+        )
     except KeyboardInterrupt:
         print(f"Received keyboard interrupt so quitting...")
         ui.quit()
