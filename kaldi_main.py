@@ -55,12 +55,10 @@ class App(threading.Thread):
         self._do_shutdown()
 
     def set_status_line(self, s):
-        if len(s):
-            self.status_line.set(s)
+        self.status_line.set(s)
 
     def set_last_heard(self, s):
-        if len(s):
-            self.last_heard.set(s)
+        self.last_heard.set(s)
 
     def _on_window_close(self):
         do_quit = messagebox.askyesno(message='Are you sure you want to quit KaldiUI?', icon='question', title='Quit?')
