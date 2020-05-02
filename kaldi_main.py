@@ -26,7 +26,8 @@ class FakeStringVar:
     """A version of StringVar that can be used while tk is not yet loaded.
 
     Allows StringVar setters called from outside the tk thread to be agnostic of whether the UI has
-    actually been created yet. Then, when the tk UI is actually created, a FakeStringVar can be
+    actually been created yet (normally you can't set the value of a StringVar if the tk root has
+    not been created yet). Then, when the tk UI is actually created, a FakeStringVar can be
     'upgraded' into a real StringVar."""
 
     def __init__(self, value=""):
@@ -133,20 +134,6 @@ class App(threading.Thread):
         self.root.wm_attributes("-topmost", 1)  # always on top
 
         self.root.mainloop()
-
-
-# --------------------------------------------------------------------------
-# Set up basic logging.
-
-if False:
-    # Debugging logging for reporting trouble
-    logging.basicConfig(level=10)
-    logging.getLogger("grammar.decode").setLevel(20)
-    logging.getLogger("grammar.begin").setLevel(20)
-    logging.getLogger("compound").setLevel(20)
-    logging.getLogger("kaldi.compiler").setLevel(10)
-else:
-    setup_log()
 
 
 class AppStatus(enum.Enum):
@@ -313,4 +300,14 @@ def main():
 
 
 if __name__ == "__main__":
+    if False:
+        # Debugging logging for reporting trouble
+        logging.basicConfig(level=10)
+        logging.getLogger("grammar.decode").setLevel(20)
+        logging.getLogger("grammar.begin").setLevel(20)
+        logging.getLogger("compound").setLevel(20)
+        logging.getLogger("kaldi.compiler").setLevel(10)
+    else:
+        setup_log()
+
     main()
