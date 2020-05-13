@@ -40,10 +40,11 @@ class FakeStringVar:
         return tk.StringVar(value=self.value)
 
 class App(threading.Thread):
-    def __init__(self, shutdown_engine):
+    def __init__(self, do_quit):
         threading.Thread.__init__(self)
-        self.shutdown_engine = shutdown_engine
-        self.should_close = False
+        self.daemon = True # auto-quit the UI if the main app quits
+
+        self.do_quit = do_quit
         self.context = {}
 
         self.status_line_var = FakeStringVar()
@@ -51,12 +52,6 @@ class App(threading.Thread):
         self.context_var = FakeStringVar()
 
         self.start()
-
-    def quit(self):
-        """Quit the UI.
-
-        Intended to be called from outside the UI - i.e. is safe to call from another thread."""
-        self._do_shutdown()
 
     def set_status_line(self, s):
         """Update the displayed status (asleep, listening, etc)."""
@@ -93,23 +88,7 @@ class App(threading.Thread):
         )
         if do_quit:
             print("UI window closed - shutting down")
-            self._do_shutdown()
-
-    def _do_shutdown(self):
-        self.shutdown_engine()
-        self.should_close = True
-
-    def _check_for_quit(self):
-        """Periodically checks whether we should quit.
-
-        Checking on a timer is more resilient to being asked to quit from another thread; without
-        this, tk won't quit on a ctrl-c interrupt until the mouse is moved or it gets some other
-        event. This approach supports ctrl-c, quitting via the window manager, and quitting via
-        voice command."""
-        if self.should_close:
-            self.root.quit()
-        else:
-            self.root.after(1000, self._check_for_quit)
+            self.do_quit()
 
     def run(self):
         self.root = tk.Tk()
@@ -128,7 +107,6 @@ class App(threading.Thread):
         label = ttk.Label(self.root, textvariable=self.context_var)
         label.grid(column=0, row=1, columnspan=2, sticky="nw")
 
-        self.root.after(1000, self._check_for_quit)
         self.root.attributes("-alpha", 0.8)  # transparency
         self.root.overrideredirect(True)  # hide the title bar
         self.root.wm_attributes("-topmost", 1)  # always on top
@@ -194,19 +172,13 @@ def load_sleep_wake_grammar(initial_awake, notify_status):
         sleep(force=True)
 
 
-def load_ui_grammar(do_quit):
+def load_ui_grammar(do_quit, do_restart):
     ui_grammar = Grammar("KaldiUI")
-
-    def restart_app():
-        import sys
-
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
 
     class ControlRule(MappingRule):
         mapping = {
             "please quit the kaldi UI": Function(do_quit),
-            "please restart the kaldi UI": Function(restart_app),
+            "please restart the kaldi UI": Function(do_restart),
         }
 
     ui_grammar.add_rule(ControlRule())
@@ -214,8 +186,11 @@ def load_ui_grammar(do_quit):
     ui_grammar.load()
 
 
-# --------------------------------------------------------------------------
-# Main event driving loop.
+def restart_process():
+    import sys
+
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 
 def main():
@@ -245,7 +220,7 @@ def main():
         # retain_audio=None,  # set to True to retain speech data wave files in the retain_dir (if set)
     )
 
-    ui = App(shutdown_engine=engine.disconnect)
+    ui = App(do_quit=engine.disconnect)
 
     def notify_status(status: AppStatus):
         if status == AppStatus.LOADING:
@@ -265,8 +240,8 @@ def main():
     engine.connect()
 
     # Load grammars.
-    load_sleep_wake_grammar(True, notify_status=notify_status)
-    load_ui_grammar(do_quit=ui.quit)
+    load_sleep_wake_grammar(initial_awake=True, notify_status=notify_status)
+    load_ui_grammar(do_quit=lambda: engine.disconnect(), do_restart=restart_process)
     directory = CommandModuleDirectory(path, excludes=[__file__])
     directory.load()
 
@@ -296,7 +271,7 @@ def main():
         )
     except KeyboardInterrupt:
         print(f"Received keyboard interrupt so quitting...")
-        ui.quit()
+        # the only threads that we have are daemon threads, so if we get this far then the app will exit
 
 
 if __name__ == "__main__":
