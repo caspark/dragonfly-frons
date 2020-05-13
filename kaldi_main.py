@@ -277,6 +277,7 @@ def main():
         elif status == AppStatus.READY:
             print("Awake...")
             ui.set_status_line("Listening...")
+        else:
             print(f"Unknown status! {status}")
 
     notify_status(AppStatus.LOADING)
