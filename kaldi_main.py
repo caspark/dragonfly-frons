@@ -9,17 +9,28 @@ the Kaldi engine. It scans the directory it's in and loads any ``_*.py`` it
 finds.
 """
 
+import datetime
 import enum
 import logging
 import os.path
+import sys
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 from dragonfly import (Dictation, FuncContext, Function, Grammar, MappingRule,
                        get_engine)
 from dragonfly.loader import CommandModuleDirectory
 from dragonfly.log import setup_log
+
+# watchdog is an optional dependency
+try:
+    from watchdog.events import RegexMatchingEventHandler
+except:
+    # define a stub
+    class RegexMatchingEventHandler:
+        pass
 
 
 class FakeStringVar:
@@ -112,6 +123,40 @@ class App(threading.Thread):
         self.root.wm_attributes("-topmost", 1)  # always on top
 
         self.root.mainloop()
+
+
+class WatchDogFileChangeHandler(RegexMatchingEventHandler):
+    def __init__(self, do_restart):
+        RegexMatchingEventHandler.__init__(self, regexes=[r".+\.py"], ignore_regexes=[],
+                 ignore_directories=True, case_sensitive=False)
+        self.last_modified = datetime.datetime.now()
+        self.do_restart = do_restart
+
+    def on_any_event(self, event):
+        if datetime.datetime.now() - self.last_modified < datetime.timedelta(seconds=1):
+            return
+
+        self.last_modified = datetime.datetime.now()
+
+        print(f"Reloader: {event.src_path} {event.event_type}, restarting...")
+        self.do_restart()
+
+
+def start_watchdog_observer(do_restart):
+    try:
+        from watchdog.observers import Observer
+    except:
+        print("Reloader: watchdog not installed - run `pip install watchdog` to enable automatically restarting on code changes")
+        return None
+    else:
+        path = str(Path('.').resolve())
+        event_handler = WatchDogFileChangeHandler(do_restart=do_restart)
+        print(f"Reloader: watching {path} for changes...")
+
+        observer = Observer()
+        observer.schedule(event_handler, path, recursive=True)
+        observer.start()
+        return observer
 
 
 class AppStatus(enum.Enum):
@@ -210,7 +255,7 @@ def main():
     engine = get_engine(
         "kaldi",
         model_dir="models/daanzu_20200328_1ep-mediumlm",  # default model directory
-        vad_aggressiveness=1,  # default aggressiveness of VAD
+        vad_aggressiveness=0,  # default aggressiveness of VAD
         vad_padding_start_ms=10,  # default ms of required silence before VAD
         vad_padding_end_ms=10,  # default ms of required silence after VAD
         vad_complex_padding_end_ms=10,  # default ms of required silence after VAD for complex utterances
@@ -260,6 +305,7 @@ def main():
 
     # Start the engine's main recognition loop
     engine.prepare_for_recognition()
+    watchdog_observer = start_watchdog_observer(do_restart=restart_process)
     try:
         notify_status(AppStatus.READY)
         engine.do_recognition(
@@ -271,7 +317,11 @@ def main():
         )
     except KeyboardInterrupt:
         print(f"Received keyboard interrupt so quitting...")
-        # the only threads that we have are daemon threads, so if we get this far then the app will exit
+
+    # cleanup
+    if watchdog_observer:
+        watchdog_observer.stop()
+        watchdog_observer.join()
 
 
 if __name__ == "__main__":
