@@ -239,8 +239,6 @@ def restart_process():
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-
     try:
         path = os.path.dirname(__file__)
     except NameError:
@@ -336,4 +334,9 @@ if __name__ == "__main__":
     else:
         setup_log()
 
-    main()
+    try:
+        main()
+    except Exception as e:
+        logging.exception(e)
+        # wait for keypress in case we're in a new window
+        input("Fatal error encountered; press Enter to exit...")
