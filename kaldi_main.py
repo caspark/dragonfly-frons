@@ -19,8 +19,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from dragonfly import (Dictation, FuncContext, Function, Grammar, MappingRule,
-                       get_engine)
+from dragonfly import Dictation, FuncContext, Function, Grammar, MappingRule, get_engine
 from dragonfly.loader import CommandModuleDirectory
 from dragonfly.log import setup_log
 
@@ -50,10 +49,11 @@ class FakeStringVar:
     def upgrade(self):
         return tk.StringVar(value=self.value)
 
+
 class App(threading.Thread):
     def __init__(self, do_quit):
         threading.Thread.__init__(self)
-        self.daemon = True # auto-quit the UI if the main app quits
+        self.daemon = True  # auto-quit the UI if the main app quits
 
         self.do_quit = do_quit
         self.context = {}
@@ -127,8 +127,13 @@ class App(threading.Thread):
 
 class WatchDogFileChangeHandler(RegexMatchingEventHandler):
     def __init__(self, do_restart):
-        RegexMatchingEventHandler.__init__(self, regexes=[r".+\.py"], ignore_regexes=[],
-                 ignore_directories=True, case_sensitive=False)
+        RegexMatchingEventHandler.__init__(
+            self,
+            regexes=[r".+\.py"],
+            ignore_regexes=[],
+            ignore_directories=True,
+            case_sensitive=False,
+        )
         self.last_modified = datetime.datetime.now()
         self.do_restart = do_restart
 
@@ -146,10 +151,12 @@ def start_watchdog_observer(do_restart):
     try:
         from watchdog.observers import Observer
     except:
-        print("Reloader: watchdog not installed - run `pip install watchdog` to enable automatically restarting on code changes")
+        print(
+            "Reloader: watchdog not installed - run `pip install watchdog` to enable automatically restarting on code changes"
+        )
         return None
     else:
-        path = str(Path('.').resolve())
+        path = str(Path(".").resolve())
         event_handler = WatchDogFileChangeHandler(do_restart=do_restart)
         print(f"Reloader: watching {path} for changes...")
 
