@@ -32,6 +32,10 @@ except:
         pass
 
 
+# Configuration, of sorts (see also the kaldi invocation for choosing microphone and such)
+MAX_DISPLAYED_HISTORY = 5
+
+
 class FakeStringVar:
     """A version of StringVar that can be used while tk is not yet loaded.
 
@@ -298,16 +302,22 @@ def main():
 
     # Define recognition callback functions.
     def on_begin():
-        print("Speech start detected.")
+        ui.set_visual_context("last speech start", datetime.datetime.now())
+
+    last_utterances = []
 
     def on_recognition(words):
         s = " ".join(words)
         if len(s):
             ui.set_last_heard(f"Last heard: {s}")
+            last_utterances.append(s)
+            while len(last_utterances) > MAX_DISPLAYED_HISTORY:
+                del last_utterances[0]
+            ui.set_visual_context("History", "\n" + "\n".join(last_utterances))
         print("Recognized: %s" % " ".join(words))
 
     def on_failure():
-        print("Sorry, what was that?")
+        ui.set_visual_context("last speech failure", datetime.datetime.now())
 
     # Start the engine's main recognition loop
     engine.prepare_for_recognition()
