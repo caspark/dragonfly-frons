@@ -16,6 +16,7 @@ import os.path
 import sys
 import threading
 import tkinter as tk
+import time
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -147,7 +148,9 @@ class WatchDogFileChangeHandler(RegexMatchingEventHandler):
 
         self.last_modified = datetime.datetime.now()
 
-        print(f"Reloader: {event.src_path} {event.event_type}, restarting...")
+        # TODO md5 all matching files to see if anything actually changed
+
+        print(f"Reloader: {event.src_path} {event.event_type}, restarting...\n")
         self.do_restart()
 
 
