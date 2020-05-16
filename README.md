@@ -44,3 +44,7 @@ So next step is probably to split this apart and take it from "drop in file with
 ## What's with the name?
 
 Naming things well is hard. One hypothetical way to deal with that when you're building a front-end for a library called Dragonfly is that you google "dragonfly anatomy" and pick an uncommon but vaguely pronouncible noun on the first returned result. I'm not saying that's what happened here, but I'm also not saying that's not what happened here.
+
+## License
+
+Licensed under the GNU General Public License v3.0 or later; see `LICENSE`.
