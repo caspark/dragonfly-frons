@@ -239,7 +239,18 @@ class WatchDogFileChangeHandler(RegexMatchingEventHandler):
         RegexMatchingEventHandler.__init__(
             self,
             regexes=[r".+\.py"],
-            ignore_regexes=[],
+            ignore_regexes=[
+                # VSCode's Black integration creates temp files like kaldi_main.py.80dd20e69f7d6eef4107c17b335180be.py
+                # and if vscode runs Black on save, and we use those as a trigger to restart, we may restart before
+                # the reformatted file is actually written, so we'll run old code in that case.
+                # So as a workaround, ignore these temp files.
+                # A more generic fix might be to wait until we see no more filesystem events for a time X before restarting,
+                # but that would introduce a noticeable restart delay and would not be guaranteed to work either (say X is
+                # less than the amount of time for a format operation to run - imagine big files).
+                # A more reliable fix would be to MD5 everything right before restarting, save that to a file
+                # somewhere, then check on startup restart if further changes have occurred.
+                r".+\.py\.[a-f0-9]{32}\.py$"
+            ],
             ignore_directories=True,
             case_sensitive=False,
         )
@@ -252,9 +263,9 @@ class WatchDogFileChangeHandler(RegexMatchingEventHandler):
 
         self.last_modified = datetime.datetime.now()
 
-        # TODO md5 all matching files to see if anything actually changed
+        # TODO md5 all matching files to see if anything actually changed?
 
-        print(f"Reloader: {event.src_path} {event.event_type}, restarting...\n")
+        print(f"Reloader: {event.src_path} {event.event_type}, restarting now...\n")
         self.do_restart()
 
 
