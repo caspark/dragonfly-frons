@@ -37,6 +37,108 @@ except:
 MAX_DISPLAYED_HISTORY = 5
 
 
+def try_prevent_window_activation_on_windows(tk_root):
+    """Attempt to prevent the given TK window from stealing focus on Windows.
+
+    CURRENTLY NOT WORKING!
+
+    For some reason, both GetParent and GetAncestor return a handle of 00... even though it is
+    crystal clear in Spy++ that there's a TK parent window. In fact, the wm_frame() of Tk() gives a
+    handle that points at a "TkChild", and immediately above that is the parent we are trying to get
+    at (class of TkTopLevel).. but we can't get a handle to it this way.
+
+    What this means is that the rest of the function (which sets "no activate") will happily modify
+    the child window (and we can see that's successful based on return codes as well as by looking
+    at the modified styles in Spy++), but this has no effect on whether the window gets activated or
+    not.
+
+    TK itself *does* know about the top level window; aside from that it creates it, if we don't do
+    `root.overrideredirect(True)` and instead do `self.root.wm_attributes("-toolwindow", 1)` then we
+    can see the WS_EX_TOOLWINDOW attribute get set. It just doesn't provide a way to get at that via
+    its API.
+    """
+    import ctypes
+    from ctypes import windll, wintypes
+
+    # flags we need
+    GWL_STYLE = -16
+    GWL_EXSTYLE = -20
+    WS_CHILD = 0x40000000
+    WS_EX_APPWINDOW = 0x00040000
+    WS_EX_NOACTIVATE = 0x08000000
+
+    SWP_FRAMECHANGED = 0x0020
+    SWP_NOACTIVATE = 0x0010
+    SWP_NOZORDER = 0x0004
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+
+    # functions we need
+    GetWindowLong = windll.user32.GetWindowLongPtrW
+    GetWindowLong.restype = wintypes.ULONG
+    GetWindowLong.argtpes = (wintypes.HWND, wintypes.INT)
+
+    SetWindowLong = windll.user32.SetWindowLongPtrW
+    SetWindowLong.restype = wintypes.ULONG
+    SetWindowLong.argtpes = (wintypes.HWND, wintypes.INT, wintypes.ULONG)
+
+    SetWindowPos = windll.user32.SetWindowPos
+
+    GetParent = windll.user32.GetParent
+    GetParent.restype = wintypes.HWND
+    GetParent.argtpes = (wintypes.HWND,)
+
+    GetAncestor = windll.user32.GetAncestor
+    GetAncestor.restype = wintypes.HWND
+    GetAncestor.argtpes = (wintypes.HWND,)
+
+    hwnd = int(tk_root.wm_frame(), 16)
+    print("window handle is ", hwnd)
+
+    # this call below doesn't work but should - see docstring
+    # hwnd = GetAncestor(hwnd)
+    # err = ctypes.get_last_error()
+    # print("last error", err)
+    # print("ancestor window is", hwnd)
+
+    style = GetWindowLong(hwnd, GWL_EXSTYLE)
+    err = ctypes.get_last_error()
+    print("last error", err)
+    print("existing style is", style)
+
+    style = style | WS_EX_NOACTIVATE
+    print("setting style of", style)
+
+    res = SetWindowLong(hwnd, GWL_EXSTYLE, style)
+    err = ctypes.get_last_error()
+    print("last error", err)
+    print("replaced style was", res)
+
+    style = GetWindowLong(hwnd, GWL_EXSTYLE)
+    err = ctypes.get_last_error()
+    print("last error", err)
+    print("new style is now", style)
+
+    style = GetWindowLong(hwnd, GWL_EXSTYLE)
+    err = ctypes.get_last_error()
+    print("last error", err)
+    print("existing style is", style)
+
+    # docs say that SetWindowLong style changes can be cached until SetWindowPos is called.
+    res = SetWindowPos(
+        hwnd,
+        0,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE,
+    )
+    err = ctypes.get_last_error()
+    print("last error", err)
+    print("replaced window pos result", res)
+
+
 class FakeStringVar:
     """A version of StringVar that can be used while tk is not yet loaded.
 
@@ -126,6 +228,8 @@ class App(threading.Thread):
         self.root.attributes("-alpha", 0.8)  # transparency
         self.root.overrideredirect(True)  # hide the title bar
         self.root.wm_attributes("-topmost", 1)  # always on top
+
+        try_prevent_window_activation_on_windows(self.root)
 
         self.root.mainloop()
 
