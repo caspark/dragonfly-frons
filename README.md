@@ -43,6 +43,7 @@ There are also a bunch of features I'd like to add:
 * hotkey support for exiting/restarting/forcing a grammar reload, etc.
 * display of kaldi hypotheses, so you can get feedback as you are speaking
 * display of what microphone is in use (and maybe have it be configurable via UI/settings file?)
+* backup mechanism to restore "last working" versions of broken grammars that no longer load?
 * separate out the rarely relevant bits from the main overlay (e.g. last speech failure) into a separate window so not too much screen real estate is covered at any given time
 * a way to tweak Kaldi settings like voice activity detector aggressiveness
 * levels indicator so you can see when you are speaking too softly vs too loudly
