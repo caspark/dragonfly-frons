@@ -32,11 +32,20 @@ This was originally developed by hacking on `kaldi_module_loader.py` to add UI v
 
 * keeping all the code in one file to make an easy drop in replacement is getting a bit unwieldy. It would benefit from being split, but doing so means that the installation will get more complicated.. and if it's a cloned repo or installable python package, then it might warrant a configuration mechanism to avoid people having to dirty their installed packages or local clone of the repo.
 * code reloading currently restarts the whole python process. This is a blade that cuts both ways, because on the one hand it's quite reliable due to throwing away in memory state.. but on the other hand, it throws away in memory state, which necessitates users serializing their state to the filesystem and reading it on startup, and it might be a bit slower than necessary.
+    * code reloading doesn't actually check for changes to the contents of any loaded files - it just listens for any event in the watched directory, so repeatedly saving a file without changes will cause reloads.
     * additionally, on Windows, code reloading will cause TK to steal focus when its window is created, despite all attempts on my part to not have it do so.
-* no hotkey support for exiting/restarting/forcing a grammar reload, etc.
 * API for setting visual context is not exposed outside the file
 
-So next step is probably to split this apart and take it from "drop in file with minimal dependencies" to a repo you clone and pip install the dependencies for, which means hotkey support can be added and I can justify using a UI toolkit that is not built in to Python's stdlib.
+So next step is probably to split this apart and take it from "drop in file with minimal dependencies" to a repo you clone and pip install the dependencies for, which means I can justify using a UI toolkit that is not built in to Python's stdlib and write the more complicated code that's probably necessary to fix those quirks.
+
+There are also a bunch of features I'd like to add:
+
+* hotkey support for exiting/restarting/forcing a grammar reload, etc.
+* display of kaldi hypotheses, so you can get feedback as you are speaking
+* display of what microphone is in use (and maybe have it be configurable via UI/settings file?)
+* separate out the rarely relevant bits from the main overlay (e.g. last speech failure) into a separate window so not too much screen real estate is covered at any given time
+* a way to tweak Kaldi settings like voice activity detector aggressiveness
+* levels indicator so you can see when you are speaking too softly vs too loudly
 
 ## Non-goals
 
