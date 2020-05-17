@@ -6,6 +6,8 @@
 
 It lets you see what words were recognized by the underlying voice recognition system, whether your microphone is turned on, etc when using the [Kaldi](https://dragonfly2.readthedocs.io/en/latest/kaldi_engine.html) speech backend of Dragonfly.
 
+![Screensho of Frons in action](https://user-images.githubusercontent.com/931544/82132678-1cf69780-9797-11ea-93f8-bf6116277029.png)
+
 Why? Historically Dragonfly has had minimal (or no) UI because it relied on being hosted inside Dragon NaturallySpeaking (using [natlink](https://qh.antenna.nl/unimacro/index.html)), which would provide visual feedback. But alternate speech engines do not provide a UI, so it's difficult to tell when commands are misrecognized vs not working.
 
 ## Status & Usage
